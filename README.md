@@ -1,2 +1,2 @@
 # GRP
-"Get Rich Pipeline": he pipeline to do any thing 
+"Get Rich Pipeline": The pipeline to do anything 
