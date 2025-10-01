@@ -1,0 +1,21 @@
+# Example data sources. Add/delete as you like.
+# You can refer to environment variables with ${ENV:NAME}.
+sources:
+  - id: github_trending_python
+    type: http_json
+    url: https://api.github.com/search/repositories
+    params:
+      q: "language:python"
+      sort: stars
+      order: desc
+      per_page: 50
+    headers:
+      Accept: application/vnd.github+json
+      # Authorization token optional; improves rate limits
+      Authorization: "Bearer ${ENV:GITHUB_TOKEN}"
+    json_path: "items"   # Which key to treat as collection for normalization
+
+  - id: hackernews_frontpage
+    type: html_list
+    url: https://news.ycombinator.com/
+    selector: "a.storylink, span.titleline > a"
