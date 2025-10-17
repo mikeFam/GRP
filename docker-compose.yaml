@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   postgres:
     image: postgres:15
@@ -17,9 +16,69 @@ services:
   redis:
     image: redis:7
 
+  airflow-init:
+    image: apache/airflow:slim-latest-python3.13
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file: .env
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - _AIRFLOW_DB_UPGRADE=true
+      - _AIRFLOW_WWW_USER_CREATE=true
+      - _PIP_ADDITIONAL_REQUIREMENTS=
+    user: "0:0"
+    entrypoint: /bin/bash
+    command: -c "pip install -r /requirements.txt && airflow db migrate && airflow users create --username ${_AIRFLOW_WWW_USER_USERNAME} --password ${_AIRFLOW_WWW_USER_PASSWORD} --firstname Admin --lastname User --role Admin --email admin@example.com || true"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./plugins:/opt/airflow/plugins
+      - ./include:/opt/airflow/include
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/requirements.txt
+
+  airflow-scheduler:
+    image: apache/airflow:slim-latest-python3.13
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file: .env
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $(hostname)"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./plugins:/opt/airflow/plugins
+      - ./include:/opt/airflow/include
+      - ./data:/opt/airflow/data
+      - ./requirements.txt:/requirements.txt
+
   airflow-webserver:
     image: apache/airflow:slim-latest-python3.13
-    depends_on: [airflow-scheduler, postgres, redis]
+    depends_on:
+      airflow-scheduler:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     env_file: .env
     environment:
       - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
@@ -43,27 +102,15 @@ services:
       timeout: 10s
       retries: 5
 
-  airflow-scheduler:
-    image: apache/airflow:slim-latest-python3.13
-    depends_on: [airflow-init]
-    env_file: .env
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
-      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
-    command: scheduler
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./plugins:/opt/airflow/plugins
-      - ./include:/opt/airflow/include
-      - ./data:/opt/airflow/data
-      - ./requirements.txt:/requirements.txt
-
   airflow-worker:
     image: apache/airflow:slim-latest-python3.13
-    depends_on: [airflow-scheduler]
+    depends_on:
+      airflow-scheduler:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     env_file: .env
     environment:
       - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
@@ -81,7 +128,13 @@ services:
 
   airflow-triggerer:
     image: apache/airflow:slim-latest-python3.13
-    depends_on: [airflow-scheduler]
+    depends_on:
+      airflow-scheduler:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     env_file: .env
     environment:
       - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
@@ -90,27 +143,6 @@ services:
       - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
       - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
     command: triggerer
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./plugins:/opt/airflow/plugins
-      - ./include:/opt/airflow/include
-      - ./data:/opt/airflow/data
-      - ./requirements.txt:/requirements.txt
-
-  airflow-init:
-    image: apache/airflow:slim-latest-python3.13
-    depends_on: [postgres, redis]
-    env_file: .env
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-      - _AIRFLOW_DB_UPGRADE=true
-      - _AIRFLOW_WWW_USER_CREATE=true
-      - _PIP_ADDITIONAL_REQUIREMENTS=
-    user: "0:0"
-    entrypoint: /bin/bash
-    command: -c "pip install -r /requirements.txt && airflow db migrate && airflow users create --username ${_AIRFLOW_WWW_USER_USERNAME} --password ${_AIRFLOW_WWW_USER_PASSWORD} --firstname Admin --lastname User --role Admin --email admin@example.com || true"
     volumes:
       - ./dags:/opt/airflow/dags
       - ./plugins:/opt/airflow/plugins

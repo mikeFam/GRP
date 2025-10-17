@@ -13,6 +13,24 @@ RUN apt-get update \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/*
 
+# Install build essentials and other dependencies
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+	build-essential \
+	gcc \
+	g++ \
+	python3-dev \
+	libbz2-dev \
+	libffi-dev \
+	liblzma-dev \
+	libncursesw5-dev \
+	libreadline-dev \
+	libsqlite3-dev \
+	libssl-dev \
+	zlib1g-dev \
+	&& apt-get clean \
+	&& rm -rf /var/lib/apt/lists/*
+
 # Switch back to airflow user
 USER airflow
 
