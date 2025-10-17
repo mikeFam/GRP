@@ -23,6 +23,7 @@
   // "postStartCommand": "set -e; SOCK_GID=$(stat -c '%g' /var/run/docker.sock); if ! getent group docker-host >/dev/null; then sudo groupadd -g ${SOCK_GID} docker-host || true; fi; sudo usermod -aG docker-host ${USER} || true",
   "remoteUser": "airflow",
   "mounts": [
-    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+    "source=/home/michael/.ssh,target=/home/airflow/.ssh,type=bind"
   ]
 }
